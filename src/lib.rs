@@ -43,11 +43,13 @@ impl Index {
 
 fn cosine_similarity_cpu(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
     let mut sum: f32 = 0.0;
+    let mut a_norm: f32 = 0.0;
+    let mut b_norm: f32 = 0.0;
     for i in 0..a.len() {
         sum += a[i] * b[i];
+        a_norm += a[i] * a[i];
+        b_norm += b[i] * b[i];
     }
-    let a_norm = a.iter().fold(0.0, |acc, x| acc + x.powi(2));
-    let b_norm = b.iter().fold(0.0, |acc, x| acc + x.powi(2));
     sum / (a_norm * b_norm).sqrt()
 }
 
@@ -60,8 +62,8 @@ fn cosine_similarity_simd(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
     let mut norm_b: f32 = 0.0;
     // Loop over partitions
     for i in 0..partitions {
-        let a_simd = f32x16::from_slice(a.as_slice().split_at(i * lanes).1);
-        let b_simd = f32x16::from_slice(b.as_slice().split_at(i * lanes).1);
+        let a_simd = f32x16::from_slice(&a.as_slice()[i*16..(i+1)*16]);
+        let b_simd = f32x16::from_slice(&b.as_slice()[i*16..(i+1)*16]);
         dot += (a_simd * b_simd).reduce_sum();
         norm_a += (a_simd * a_simd).reduce_sum();
         norm_b += (b_simd * b_simd).reduce_sum();
@@ -84,7 +86,10 @@ mod tests {
         let result_simd = index.search_simd(&data, 10);
         println!("cpu");
         let result_cpu = index.search_cpu(&data, 10);
-        assert_eq!(result_simd, result_cpu);
+        // Just compare the order since the scores are slightly different
+        let x1: Vec<usize> = result_simd.iter().map(|x| x.0).collect();
+        let x2: Vec<usize> = result_cpu.iter().map(|x| x.0).collect();
+        assert_eq!(x1, x2);
     }
 
     use test::Bencher;
@@ -104,7 +109,7 @@ mod tests {
         let (index, v) = prepare();
         // Search the index
         b.iter(|| {
-            index.search_simd(&v, 10);
+            index.search_cpu(&v, 10);
         });
     }
 

@@ -62,8 +62,10 @@ fn cosine_similarity_simd(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
     let mut norm_b: f32 = 0.0;
     // Loop over partitions
     for i in 0..partitions {
-        let a_simd = f32x16::from_slice(&a.as_slice()[i*16..(i+1)*16]);
-        let b_simd = f32x16::from_slice(&b.as_slice()[i*16..(i+1)*16]);
+        let i1 = i * lanes;
+        let i2 = (i + 1) * lanes;
+        let a_simd = f32x16::from_slice(&a.as_slice()[i1..i2]);
+        let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
         dot += (a_simd * b_simd).reduce_sum();
         norm_a += (a_simd * a_simd).reduce_sum();
         norm_b += (b_simd * b_simd).reduce_sum();
@@ -93,6 +95,7 @@ mod tests {
     }
 
     use test::Bencher;
+    use rand::distributions::Standard;
     use rand::Rng;
 
     #[bench]
@@ -120,19 +123,11 @@ mod tests {
         let mut index = super::Index::new();
         // Generate 100000 random 512 dimension vectors
         for _ in 0..100000 {
-            let mut v: Vec<f32> = vec![];
-            v.reserve(512);
-            for _ in 0..512 {
-                v.push(rng.gen());
-            }
+            let v: Vec<f32> = rng.clone().sample_iter(Standard).take(512).collect();
             index.add(v);
         }
         // Generate a random 512 dimension vector
-        let mut v: Vec<f32> = vec![];
-        for _ in 0..512 {
-            v.reserve(512);
-            v.push(rand::random::<f32>());
-        }
+        let v: Vec<f32> = rng.sample_iter(Standard).take(512).collect();
         (index, v)
     }
 }

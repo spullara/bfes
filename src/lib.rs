@@ -2,7 +2,6 @@
 #![feature(portable_simd)]
 
 use std::simd::f32x16;
-use std::simd::StdFloat;
 
 struct Index {
     index: Vec<Vec<f32>>,
@@ -18,7 +17,7 @@ impl Index {
         self.index.push(data);
     }
     // Use cosine similarity to search index
-    fn search_simd(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
+    fn search(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         let mut result: Vec<(usize, f32)> = vec![];
         for (i, v) in self.index.iter().enumerate() {
             let score = cosine_similarity_simd(data, v);
@@ -28,29 +27,9 @@ impl Index {
         result.truncate(topk);
         result
     }
-    // Use cosine similarity to search index
-    fn search_cpu(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
-        let mut result: Vec<(usize, f32)> = vec![];
-        for (i, v) in self.index.iter().enumerate() {
-            let score = cosine_similarity_cpu(data, v);
-            result.push((i, score));
-        }
-        result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        result.truncate(topk);
-        result
+    fn len(&self) -> usize {
+        self.index.len()
     }
-}
-
-fn cosine_similarity_cpu(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
-    let mut sum: f32 = 0.0;
-    let mut a_norm: f32 = 0.0;
-    let mut b_norm: f32 = 0.0;
-    for i in 0..a.len() {
-        sum += a[i] * b[i];
-        a_norm += a[i] * a[i];
-        b_norm += b[i] * b[i];
-    }
-    sum / (a_norm * b_norm).sqrt()
 }
 
 fn cosine_similarity_simd(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
@@ -77,48 +56,24 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use crate::{Index, cosine_similarity_cpu, cosine_similarity_simd};
-
-    #[test]
-    // Compare that search_simd and search_cpu are the same
-    fn test_search_simd_cpu() {
-        println!("preparing");
-        let (index, data) = prepare();
-        println!("simd");
-        let result_simd = index.search_simd(&data, 10);
-        println!("cpu");
-        let result_cpu = index.search_cpu(&data, 10);
-        // Just compare the order since the scores are slightly different
-        let x1: Vec<usize> = result_simd.iter().map(|x| x.0).collect();
-        let x2: Vec<usize> = result_cpu.iter().map(|x| x.0).collect();
-        assert_eq!(x1, x2);
-    }
+    use crate::Index;
 
     use test::Bencher;
     use rand::distributions::Standard;
     use rand::Rng;
 
     #[bench]
-    fn bench_cosine_similarity_simd(b: &mut Bencher) {
+    fn bench_cosine_similarity(b: &mut Bencher) {
         let (index, v) = prepare();
         // Search the index
         b.iter(|| {
-            index.search_simd(&v, 10);
-        });
-    }
-
-    #[bench]
-    fn bench_cosine_similarity_cpu(b: &mut Bencher) {
-        let (index, v) = prepare();
-        // Search the index
-        b.iter(|| {
-            index.search_cpu(&v, 10);
+            index.search(&v, 10);
         });
     }
 
     fn prepare() -> (Index, Vec<f32>) {
         // Thread rng
-        let mut rng = rand::thread_rng();
+        let rng = rand::thread_rng();
         // Make a new index
         let mut index = super::Index::new();
         // Generate 100000 random 512 dimension vectors

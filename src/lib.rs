@@ -1,4 +1,7 @@
 #![feature(test)]
+#![feature(portable_simd)]
+
+use std::simd::f32x16;
 
 struct Index {
     index: Vec<Vec<f32>>,
@@ -27,17 +30,14 @@ impl Index {
 }
 
 fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
-    let mut dot = 0.0;
-    let mut norm_a = 0.0;
-    let mut norm_b = 0.0;
-    for i in 0..a.len() {
-        dot += a[i] * b[i];
-        norm_a += a[i] * a[i];
-        norm_b += b[i] * b[i];
-    }
-    dot / (norm_a * norm_b).sqrt()
+    // Use simd to calculate cosine similarity
+    let a_simd = f32x16::from_slice(a.as_slice());
+    let b_simd = f32x16::from_slice(b.as_slice());
+    let dot = a_simd * b_simd;
+    let norm_a = a_simd * a_simd;
+    let norm_b = b_simd * b_simd;
+    dot.reduce_min() / (norm_a * norm_b).reduce_min().sqrt()
 }
-
 
 extern crate test;
 

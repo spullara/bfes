@@ -22,7 +22,6 @@ TARGETS=(
 )
 for target in "${TARGETS[@]}"
 do
-  rustup target add $target
   cargo +nightly build -Z build-std --release --target $target
 done
 
@@ -48,4 +47,4 @@ xcodebuild -create-xcframework \
   -headers ./include/ \
   -library ./libbfes_maccatalyst.a \
   -headers ./include/ \
-  -output Granne.xcframework
+  -output BFES.xcframework

@@ -7,22 +7,26 @@ use std::simd::f32x16;
 
 struct Index {
     index: Vec<Vec<f32>>,
+    squared: Vec<f32>
 }
 
 impl Index {
     fn new() -> Index {
         Index {
-            index: vec![]
+            index: vec![],
+            squared: vec![]
         }
     }
     fn add(&mut self, data: Vec<f32>) {
-        self.index.push(data);
+        self.index.push(data.clone());
+        self.squared.push(square(&data));
     }
     // Use cosine similarity to search index
     fn search(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         let mut result: Vec<(usize, f32)> = vec![];
+        let a2 = square(&data);
         for (i, v) in self.index.iter().enumerate() {
-            let score = cosine_similarity(data, v);
+            let score = cosine_similarity(data, v, a2, self.squared[i]);
             result.push((i, score));
         }
         result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -34,13 +38,20 @@ impl Index {
     }
 }
 
-fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
+fn square(a: &Vec<f32>) -> f32 {
+    let mut result = 0.0;
+    for i in 0..a.len() {
+        result += a[i] * a[i];
+    }
+    result
+}
+
+
+fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a2: f32, b2: f32) -> f32 {
     let lanes = 16;
     let partitions = a.len() / lanes;
     // Use simd to calculate cosine similarity
     let mut dot: f32 = 0.0;
-    let mut norm_a: f32 = 0.0;
-    let mut norm_b: f32 = 0.0;
     // Loop over partitions
     for i in 0..partitions {
         let i1 = i * lanes;
@@ -48,21 +59,27 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
         let a_simd = f32x16::from_slice(&a.as_slice()[i1..i2]);
         let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
         dot += (a_simd * b_simd).reduce_sum();
-        norm_a += (a_simd * a_simd).reduce_sum();
-        norm_b += (b_simd * b_simd).reduce_sum();
     }
-    dot / (norm_a * norm_b).sqrt()
+    dot / (a2 * b2).sqrt()
 }
-
-extern crate test;
 
 #[cfg(test)]
 mod tests {
     use crate::Index;
 
+    extern crate test;
     use test::Bencher;
     use rand::distributions::Standard;
     use rand::Rng;
+
+    /// The following test function is necessary for the header generation.
+    #[::safer_ffi::cfg_headers]
+    #[test]
+    fn generate_headers() -> ::std::io::Result<()> {
+        ::safer_ffi::headers::builder()
+            .to_file("include/bfes.h")?
+            .generate()
+    }
 
     #[bench]
     fn bench_cosine_similarity(b: &mut Bencher) {
@@ -165,6 +182,29 @@ pub extern fn bfes_search(
         index.search(&Vec::from(buf), topk).iter().for_each(|x| {
             result.push(SearchResult { index: x.0, score: x.1})
         })
+    }
+    result.into()
+}
+
+#[ffi_export]
+pub extern fn bfes_parse_embedding(
+    embedding_string: *const c_char
+) -> repr_c::Vec<f32> {
+    let embedding_string = cchar_to_string(embedding_string);
+    embedding_string.split(",").filter_map(|s| s.parse::<f32>().ok()).collect::<Vec<_>>().into()
+}
+
+#[ffi_export]
+pub extern fn bfes_parse_embeddings(
+    embedding_strings: *const *const c_char,
+    num: isize
+) -> repr_c::Vec<repr_c::Vec<f32>> {
+    let mut result: Vec<repr_c::Vec<f32>> = Vec::new();
+    for i in 0..num {
+        unsafe {
+            let vec = bfes_parse_embedding(*(embedding_strings.offset(i)));
+            result.push(vec)
+        }
     }
     result.into()
 }

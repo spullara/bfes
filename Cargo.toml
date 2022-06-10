@@ -15,3 +15,8 @@ c-headers = ["safer-ffi/headers"]
 safer-ffi = { version = "*", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
+
+# https://github.com/danielhenrymantilla/mini_paste/commit/69f4e5e0784d05fecaaca7ec8d8ed0a13f407472
+[patch.crates-io.mini_paste]
+git = "https://github.com/danielhenrymantilla/mini_paste.git"
+rev = "69f4e5e0784d05fecaaca7ec8d8ed0a13f407472"

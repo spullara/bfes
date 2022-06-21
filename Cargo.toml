@@ -21,3 +21,6 @@ rand = "0.8.5"
 [patch.crates-io.mini_paste]
 git = "https://github.com/danielhenrymantilla/mini_paste.git"
 rev = "69f4e5e0784d05fecaaca7ec8d8ed0a13f407472"
+
+[profile.bench]
+debug = true

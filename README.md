@@ -22,3 +22,11 @@ test tests::bench_cosine_similarity ... bench:  11,302,216 ns/iter (+/- 185,505)
 Mac OS X, M1 Macmini9,1
 
 test tests::bench_cosine_similarity ... bench:  9,559,170 ns/iter (+/- 592,620)
+
+Ubuntu 18.04, AWS c6i.large
+
+test tests::bench_cosine_similarity ... bench:  25,452,715 ns/iter (+/- 848,001)
+
+Ubuntu 22.04, AWS c6g.medium
+
+test tests::bench_cosine_similarity ... bench:  17,306,132 ns/iter (+/- 78,319)

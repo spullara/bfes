@@ -4,8 +4,8 @@
 extern crate lazy_static;
 
 use std::cmp::Ordering;
-use std::simd::{f32x16};
 use std::collections::BinaryHeap;
+use std::simd::f32x16;
 
 struct Index {
     index: Vec<Vec<f32>>,
@@ -29,11 +29,10 @@ impl PartialOrd<Self> for Score {
     }
 }
 
-impl Eq for Score {
-}
+impl Eq for Score {}
 
 impl Ord for Score {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         other.score.total_cmp(&self.score)
     }
 }
@@ -62,17 +61,18 @@ impl Index {
             let score = cosine_similarity(data, v, a2, self.squared[i]);
             if result.len() == topk {
                 let lowest = result.peek().unwrap().score;
-                if  score < lowest {
-                    continue
+                if score < lowest {
+                    continue;
                 }
                 result.pop();
             }
-            result.push(Score {
-                id: i,
-                score,
-            });
+            result.push(Score { id: i, score });
         }
-        result.into_sorted_vec().into_iter().map(|s| (s.id, s.score)).collect()
+        result
+            .into_sorted_vec()
+            .into_iter()
+            .map(|s| (s.id, s.score))
+            .collect()
     }
     fn len(&self) -> usize {
         self.index.len()
@@ -87,7 +87,6 @@ fn square(a: &Vec<f32>) -> f32 {
     }
     result
 }
-
 
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
 // I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
@@ -114,15 +113,15 @@ mod tests {
 
     extern crate test;
 
-    use test::Bencher;
     use rand::distributions::Standard;
     use rand::Rng;
+    use test::Bencher;
 
     /// The following test function is necessary for the header generation.
-    #[::safer_ffi::cfg_headers]
+    #[safer_ffi::cfg_headers]
     #[test]
-    fn generate_headers() -> ::std::io::Result<()> {
-        ::safer_ffi::headers::builder()
+    fn generate_headers() -> std::io::Result<()> {
+        safer_ffi::headers::builder()
             .to_file("include/bfes.h")?
             .generate()
     }
@@ -152,7 +151,7 @@ mod tests {
         // Thread rng
         let rng = rand::thread_rng();
         // Make a new index
-        let mut index = super::Index::new();
+        let mut index = Index::new();
         // Generate 100000 random 512 dimension vectors
         for _ in 0..100000 {
             let v: Vec<f32> = rng.clone().sample_iter(Standard).take(512).collect();
@@ -166,12 +165,12 @@ mod tests {
 
 // Here is the C API for Index. It works very well from Swift if you want to use it on
 // iOS or Mac.
-use std::ffi::CStr;
-use std::os::raw::c_char;
 use ::safer_ffi::prelude::*;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::slice;
+use std::sync::Mutex;
 
 lazy_static! {
     static ref INDEX_MANAGER: Mutex<HashMap<String, Box<Index>>> = Mutex::new(HashMap::new());
@@ -186,23 +185,17 @@ fn cchar_to_string(name: *const c_char) -> String {
 }
 
 #[ffi_export]
-pub extern fn bfes_new_index(
-    name: *const c_char,
-) {
+pub extern "C" fn bfes_new_index(name: *const c_char) {
     let idx_name = cchar_to_string(name);
 
-    INDEX_MANAGER.lock().unwrap().insert(
-        idx_name,
-        Box::new(Index::new()),
-    );
+    INDEX_MANAGER
+        .lock()
+        .unwrap()
+        .insert(idx_name, Box::new(Index::new()));
 }
 
 #[ffi_export]
-pub extern fn bfes_add(
-    name: *const c_char,
-    features: *const f32,
-    dimension: usize,
-) -> usize {
+pub extern "C" fn bfes_add(name: *const c_char, features: *const f32, dimension: usize) -> usize {
     let idx_name: String = cchar_to_string(name);
     let data_slice = unsafe { slice::from_raw_parts(features as *const f32, dimension) };
     let buf = data_slice.to_vec();
@@ -212,7 +205,7 @@ pub extern fn bfes_add(
             index.add(Vec::from(buf));
             index.len()
         }
-        None => 0
+        None => 0,
     }
 }
 
@@ -225,7 +218,7 @@ pub struct SearchResult {
 }
 
 #[ffi_export]
-pub extern fn bfes_search(
+pub extern "C" fn bfes_search(
     name: *const c_char,
     k: usize,
     features: *const f32,
@@ -239,7 +232,10 @@ pub extern fn bfes_search(
     let mut result: Vec<SearchResult> = vec![];
     if let Some(index) = INDEX_MANAGER.lock().unwrap().get(&idx_name) {
         index.search(&Vec::from(buf), topk).iter().for_each(|x| {
-            result.push(SearchResult { index: x.0, score: x.1 })
+            result.push(SearchResult {
+                index: x.0,
+                score: x.1,
+            })
         })
     }
     result.into()

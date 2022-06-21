@@ -51,7 +51,7 @@ impl Index {
     fn add(&mut self, data: Vec<f32>) {
         assert_eq!(data.len(), self.dim);
         // Precompute the unit vector and store it
-        let unit_factor = square(&data).sqrt();
+        let unit_factor = mag_squared(&data).sqrt();
         self.index.push(data.into_iter().map(|x| x / unit_factor).collect());
     }
     // Use cosine similarity to search index
@@ -60,7 +60,7 @@ impl Index {
         assert_eq!(query.len(), self.dim);
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
         // Precompute the unit coefficient for the search vector.
-        let query_unit = 1.0 / square(&query).sqrt();
+        let query_unit = 1.0 / mag_squared(&query).sqrt();
         for (i, v) in self.index.iter().enumerate() {
             let score = cosine_similarity(query, v, query_unit);
             if result.len() == topk {
@@ -84,13 +84,9 @@ impl Index {
     }
 }
 
-// As this isn't used in the main loop there is no reason to optimize it with SIMD.
-fn square(a: &Vec<f32>) -> f32 {
-    let mut result = 0.0;
-    for i in 0..a.len() {
-        result += a[i] * a[i];
-    }
-    result
+// Short hand
+fn mag_squared(a: &Vec<f32>) -> f32 {
+    cosine_similarity(a, a, 1.0)
 }
 
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
@@ -119,7 +115,8 @@ mod tests {
     extern crate test;
 
     use rand::distributions::Standard;
-    use rand::Rng;
+    use rand::{Rng, SeedableRng};
+    use rand::rngs::StdRng;
     use test::Bencher;
 
     /// The following test function is necessary for the header generation.
@@ -145,7 +142,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench_cosine_similarity(b: &mut Bencher) {
+    fn bench_search(b: &mut Bencher) {
         let (index, v) = prepare();
         // Search the index
         b.iter(|| {
@@ -154,16 +151,17 @@ mod tests {
     }
 
     fn prepare() -> (Index, Vec<f32>) {
-        // Thread rng
-        let rng = rand::thread_rng();
         // Make a new index
         let dim = 512;
         let mut index = Index::new(dim);
         // Generate 100000 random 512 dimension vectors
-        for _ in 0..100000 {
-            let v: Vec<f32> = rng.clone().sample_iter(Standard).take(dim).collect();
+        for i in 0..100000 {
+            let rng = StdRng::seed_from_u64(1337 + i + 1);
+            let v: Vec<f32> = rng.sample_iter(Standard).take(dim).collect();
             index.add(v);
         }
+        // Thread rng
+        let rng = StdRng::seed_from_u64(1337);
         // Generate a random 512 dimension vector
         let v: Vec<f32> = rng.sample_iter(Standard).take(dim).collect();
         (index, v)

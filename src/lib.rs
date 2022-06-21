@@ -9,7 +9,6 @@ use std::simd::f32x16;
 
 struct Index {
     index: Vec<Vec<f32>>,
-    unit: Vec<f32>,
 }
 
 struct Score {
@@ -43,22 +42,21 @@ impl Index {
     fn new() -> Index {
         Index {
             index: vec![],
-            unit: vec![],
         }
     }
     fn add(&mut self, data: Vec<f32>) {
         assert_eq!(data.len() % 16, 0);
-        self.index.push(data.clone());
-        // Precompute the unit coefficient for each vector
-        self.unit.push(1.0 / square(&data).sqrt());
+        // Precompute the unit vector and store it
+        let unit_factor = square(&data).sqrt();
+        self.index.push(data.into_iter().map(|x| x / unit_factor).collect());
     }
     // Use cosine similarity to search index
     fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
         // Precompute the unit coefficient for the search vector.
-        let a_unit = 1.0 / square(&query).sqrt();
+        let query_unit = 1.0 / square(&query).sqrt();
         for (i, v) in self.index.iter().enumerate() {
-            let score = cosine_similarity(query, v, a_unit, self.unit[i]);
+            let score = cosine_similarity(query, v, query_unit);
             if result.len() == topk {
                 let lowest = result.peek().unwrap().score;
                 if score < lowest {
@@ -91,7 +89,7 @@ fn square(a: &Vec<f32>) -> f32 {
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
 // I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
 // implementation this but on others (M1) it will not.
-fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32, b_unit: f32) -> f32 {
+fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32) -> f32 {
     let lanes = 16;
     let partitions = a.len() / lanes;
     // Use simd to calculate cosine similarity
@@ -104,7 +102,7 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32, b_unit: f32) -> f3
         let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
         dot += (a_simd * b_simd).reduce_sum();
     }
-    dot * a_unit * b_unit
+    dot * a_unit
 }
 
 #[cfg(test)]

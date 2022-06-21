@@ -53,39 +53,6 @@ Vec_SearchResult_t bfes_search (
     float const * features,
     size_t dimension);
 
-/** \brief
- *  Same as [`Vec<T>`][`rust::Vec`], but with guaranteed `#[repr(C)]` layout
- */
-typedef struct Vec_float {
-
-    float * ptr;
-
-    size_t len;
-
-    size_t cap;
-
-} Vec_float_t;
-
-Vec_float_t bfes_parse_embedding (
-    int8_t const * embedding_string);
-
-/** \brief
- *  Same as [`Vec<T>`][`rust::Vec`], but with guaranteed `#[repr(C)]` layout
- */
-typedef struct Vec_Vec_float {
-
-    Vec_float_t * ptr;
-
-    size_t len;
-
-    size_t cap;
-
-} Vec_Vec_float_t;
-
-Vec_Vec_float_t bfes_parse_embeddings (
-    int8_t const * const * embedding_strings,
-    ssize_t num);
-
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -9,7 +9,7 @@ use std::simd::f32x16;
 
 struct Index {
     index: Vec<Vec<f32>>,
-    squared: Vec<f32>,
+    unit: Vec<f32>,
 }
 
 struct Score {
@@ -43,22 +43,22 @@ impl Index {
     fn new() -> Index {
         Index {
             index: vec![],
-            squared: vec![],
+            unit: vec![],
         }
     }
     fn add(&mut self, data: Vec<f32>) {
         assert_eq!(data.len() % 16, 0);
         self.index.push(data.clone());
-        // We only need to compute the squared distance once for use
-        // in calculating cosine similarity.
-        self.squared.push(square(&data));
+        // Precompute the unit coefficient for each vector
+        self.unit.push(1.0 / square(&data).sqrt());
     }
     // Use cosine similarity to search index
-    fn search(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
+    fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
-        let a2 = square(&data);
+        // Precompute the unit coefficient for the search vector.
+        let a_unit = 1.0 / square(&query).sqrt();
         for (i, v) in self.index.iter().enumerate() {
-            let score = cosine_similarity(data, v, a2, self.squared[i]);
+            let score = cosine_similarity(query, v, a_unit, self.unit[i]);
             if result.len() == topk {
                 let lowest = result.peek().unwrap().score;
                 if score < lowest {
@@ -91,7 +91,7 @@ fn square(a: &Vec<f32>) -> f32 {
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
 // I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
 // implementation this but on others (M1) it will not.
-fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a2: f32, b2: f32) -> f32 {
+fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32, b_unit: f32) -> f32 {
     let lanes = 16;
     let partitions = a.len() / lanes;
     // Use simd to calculate cosine similarity
@@ -104,7 +104,7 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a2: f32, b2: f32) -> f32 {
         let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
         dot += (a_simd * b_simd).reduce_sum();
     }
-    dot / (a2 * b2).sqrt()
+    dot * a_unit * b_unit
 }
 
 #[cfg(test)]
@@ -136,6 +136,7 @@ mod tests {
             assert!(score.1 < last);
             last = score.1;
         }
+        println!("{:?}", result);
     }
 
     #[bench]

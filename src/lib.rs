@@ -8,6 +8,7 @@ use std::collections::BinaryHeap;
 use std::simd::f32x16;
 
 struct Index {
+    dim: usize,
     index: Vec<Vec<f32>>,
 }
 
@@ -40,13 +41,15 @@ impl Ord for Score {
 // This currently only supports vectors that have a length with a
 // multiple of 16.
 impl Index {
-    fn new() -> Index {
+    fn new(dim: usize) -> Index {
+        assert_eq!(dim % 16, 0);
         Index {
             index: vec![],
+            dim
         }
     }
     fn add(&mut self, data: Vec<f32>) {
-        assert_eq!(data.len() % 16, 0);
+        assert_eq!(data.len(), self.dim);
         // Precompute the unit vector and store it
         let unit_factor = square(&data).sqrt();
         self.index.push(data.into_iter().map(|x| x / unit_factor).collect());
@@ -54,6 +57,7 @@ impl Index {
     // Use cosine similarity to search index
     fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         assert!(topk > 0);
+        assert_eq!(query.len(), self.dim);
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
         // Precompute the unit coefficient for the search vector.
         let query_unit = 1.0 / square(&query).sqrt();
@@ -153,14 +157,15 @@ mod tests {
         // Thread rng
         let rng = rand::thread_rng();
         // Make a new index
-        let mut index = Index::new();
+        let dim = 512;
+        let mut index = Index::new(dim);
         // Generate 100000 random 512 dimension vectors
         for _ in 0..100000 {
-            let v: Vec<f32> = rng.clone().sample_iter(Standard).take(512).collect();
+            let v: Vec<f32> = rng.clone().sample_iter(Standard).take(dim).collect();
             index.add(v);
         }
         // Generate a random 512 dimension vector
-        let v: Vec<f32> = rng.sample_iter(Standard).take(512).collect();
+        let v: Vec<f32> = rng.sample_iter(Standard).take(dim).collect();
         (index, v)
     }
 }
@@ -187,13 +192,13 @@ fn cchar_to_string(name: *const c_char) -> String {
 }
 
 #[ffi_export]
-pub extern "C" fn bfes_new_index(name: *const c_char) {
+pub extern "C" fn bfes_new_index(name: *const c_char, dimension: usize) {
     let idx_name = cchar_to_string(name);
 
     INDEX_MANAGER
         .lock()
         .unwrap()
-        .insert(idx_name, Box::new(Index::new()));
+        .insert(idx_name, Box::new(Index::new(dimension)));
 }
 
 #[ffi_export]

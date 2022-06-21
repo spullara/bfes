@@ -59,23 +59,29 @@ impl Index {
         assert!(topk > 0);
         assert_eq!(query.len(), self.dim);
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
+        // Don't want to allocate while building the heap
+        result.reserve_exact(topk);
         // Precompute the unit coefficient for the search vector.
         let query_unit = 1.0 / mag_squared(&query).sqrt();
-        for (i, v) in self.index.iter().enumerate() {
-            let score = cosine_similarity(query, v, query_unit);
+
+        // Wondering if there is a better way to do this
+        self.index.iter().enumerate().map(|(id, vec)| {
+            (id, cosine_similarity(query, vec, query_unit))
+        }).for_each(|(id, score)| {
             if result.len() == topk {
                 if let Some(lowest) = result.peek() {
                     if score < lowest.score {
-                        continue;
+                        return;
                     }
                 }
                 result.pop();
             }
-            result.push(Score { id: i, score });
-        }
+            result.push(Score { id, score });
+        });
+
         result
             .into_sorted_vec()
-            .into_iter()
+            .iter()
             .map(|s| (s.id, s.score))
             .collect()
     }

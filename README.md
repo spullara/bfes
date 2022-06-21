@@ -9,6 +9,8 @@ time. The algorithm is O(n) in time and space.
 
 ## Performance
 
+Time to brute force search 100,000 512-dimensional embeddings:
+
 Windows 11, AMD Ryzen 9 5950x @ 3.4 GHz
 
 test tests::bench_cosine_similarity ... bench:  20,018,120 ns/iter (+/- 2,042,521)

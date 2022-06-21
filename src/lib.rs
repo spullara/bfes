@@ -3,11 +3,39 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::simd::f32x16;
+use std::cmp::Ordering;
+use std::simd::{f32x16};
+use std::collections::BinaryHeap;
 
 struct Index {
     index: Vec<Vec<f32>>,
-    squared: Vec<f32>
+    squared: Vec<f32>,
+}
+
+struct Score {
+    id: usize,
+    score: f32,
+}
+
+impl PartialEq<Self> for Score {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score
+    }
+}
+
+impl PartialOrd<Self> for Score {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for Score {
+}
+
+impl Ord for Score {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.score.partial_cmp(&self.score).unwrap()
+    }
 }
 
 // This currently only supports vectors that have a length with a
@@ -16,7 +44,7 @@ impl Index {
     fn new() -> Index {
         Index {
             index: vec![],
-            squared: vec![]
+            squared: vec![],
         }
     }
     fn add(&mut self, data: Vec<f32>) {
@@ -28,15 +56,23 @@ impl Index {
     }
     // Use cosine similarity to search index
     fn search(&self, data: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
-        let mut result: Vec<(usize, f32)> = vec![];
+        let mut result: BinaryHeap<Score> = BinaryHeap::new();
         let a2 = square(&data);
         for (i, v) in self.index.iter().enumerate() {
             let score = cosine_similarity(data, v, a2, self.squared[i]);
-            result.push((i, score));
+            if result.len() == topk {
+                let lowest = result.peek().unwrap().score;
+                if  score < lowest {
+                    continue
+                }
+                result.pop();
+            }
+            result.push(Score {
+                id: i,
+                score,
+            });
         }
-        result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        result.truncate(topk);
-        result
+        result.into_sorted_vec().into_iter().map(|s| (s.id, s.score)).collect()
     }
     fn len(&self) -> usize {
         self.index.len()
@@ -77,6 +113,7 @@ mod tests {
     use crate::Index;
 
     extern crate test;
+
     use test::Bencher;
     use rand::distributions::Standard;
     use rand::Rng;
@@ -88,6 +125,18 @@ mod tests {
         ::safer_ffi::headers::builder()
             .to_file("include/bfes.h")?
             .generate()
+    }
+
+    #[test]
+    fn search_test() {
+        let (index, v) = prepare();
+        let result = index.search(&v, 10);
+        assert_eq!(result.len(), 10);
+        let mut last = f32::MAX;
+        for (_i, score) in result.iter().enumerate() {
+            assert!(score.1 < last);
+            last = score.1;
+        }
     }
 
     #[bench]
@@ -172,7 +221,7 @@ pub extern fn bfes_add(
 #[derive(Debug, Clone, Copy)]
 pub struct SearchResult {
     index: usize,
-    score: f32
+    score: f32,
 }
 
 #[ffi_export]
@@ -190,7 +239,7 @@ pub extern fn bfes_search(
     let mut result: Vec<SearchResult> = vec![];
     if let Some(index) = INDEX_MANAGER.lock().unwrap().get(&idx_name) {
         index.search(&Vec::from(buf), topk).iter().for_each(|x| {
-            result.push(SearchResult { index: x.0, score: x.1})
+            result.push(SearchResult { index: x.0, score: x.1 })
         })
     }
     result.into()

@@ -19,13 +19,13 @@ struct Score {
 
 impl PartialEq<Self> for Score {
     fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
+        self.id == other.id
     }
 }
 
 impl PartialOrd<Self> for Score {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        other.score.partial_cmp(&self.score)
     }
 }
 
@@ -34,7 +34,7 @@ impl Eq for Score {
 
 impl Ord for Score {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.score.partial_cmp(&self.score).unwrap()
+        other.score.total_cmp(&self.score)
     }
 }
 

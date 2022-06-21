@@ -10,6 +10,8 @@ struct Index {
     squared: Vec<f32>
 }
 
+// This currently only supports vectors that have a length with a
+// multiple of 16.
 impl Index {
     fn new() -> Index {
         Index {
@@ -18,7 +20,10 @@ impl Index {
         }
     }
     fn add(&mut self, data: Vec<f32>) {
+        assert_eq!(data.len() % 16, 0);
         self.index.push(data.clone());
+        // We only need to compute the squared distance once for use
+        // in calculating cosine similarity.
         self.squared.push(square(&data));
     }
     // Use cosine similarity to search index
@@ -38,6 +43,7 @@ impl Index {
     }
 }
 
+// As this isn't used in the main loop there is no reason to optimize it with SIMD.
 fn square(a: &Vec<f32>) -> f32 {
     let mut result = 0.0;
     for i in 0..a.len() {
@@ -47,6 +53,9 @@ fn square(a: &Vec<f32>) -> f32 {
 }
 
 
+// Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
+// I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
+// implementation this but on others (M1) it will not.
 fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a2: f32, b2: f32) -> f32 {
     let lanes = 16;
     let partitions = a.len() / lanes;
@@ -106,7 +115,8 @@ mod tests {
     }
 }
 
-// Here is the C API for Index
+// Here is the C API for Index. It works very well from Swift if you want to use it on
+// iOS or Mac.
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use ::safer_ffi::prelude::*;
@@ -182,29 +192,6 @@ pub extern fn bfes_search(
         index.search(&Vec::from(buf), topk).iter().for_each(|x| {
             result.push(SearchResult { index: x.0, score: x.1})
         })
-    }
-    result.into()
-}
-
-#[ffi_export]
-pub extern fn bfes_parse_embedding(
-    embedding_string: *const c_char
-) -> repr_c::Vec<f32> {
-    let embedding_string = cchar_to_string(embedding_string);
-    embedding_string.split(",").filter_map(|s| s.parse::<f32>().ok()).collect::<Vec<_>>().into()
-}
-
-#[ffi_export]
-pub extern fn bfes_parse_embeddings(
-    embedding_strings: *const *const c_char,
-    num: isize
-) -> repr_c::Vec<repr_c::Vec<f32>> {
-    let mut result: Vec<repr_c::Vec<f32>> = Vec::new();
-    for i in 0..num {
-        unsafe {
-            let vec = bfes_parse_embedding(*(embedding_strings.offset(i)));
-            result.push(vec)
-        }
     }
     result.into()
 }

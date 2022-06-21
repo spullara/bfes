@@ -27,6 +27,10 @@ Ubuntu 18.04, AWS c6i.large
 
 test tests::bench_cosine_similarity ... bench:  25,452,715 ns/iter (+/- 848,001)
 
-Ubuntu 22.04, AWS c6g.medium
+Ubuntu 22.04, AWS c6a.large
 
 test tests::bench_cosine_similarity ... bench:  17,306,132 ns/iter (+/- 78,319)
+
+Ubuntu 22.04, AWS c6g.medium
+
+test tests::bench_cosine_similarity ... bench:  30,262,326 ns/iter (+/- 64,509)

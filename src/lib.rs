@@ -31,6 +31,7 @@ impl PartialOrd<Self> for Score {
 impl Eq for Score {}
 
 impl Ord for Score {
+    // Reverse the order so that the highest score is first.
     fn cmp(&self, other: &Self) -> Ordering {
         other.score.total_cmp(&self.score)
     }
@@ -52,15 +53,17 @@ impl Index {
     }
     // Use cosine similarity to search index
     fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
+        assert!(topk > 0);
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
         // Precompute the unit coefficient for the search vector.
         let query_unit = 1.0 / square(&query).sqrt();
         for (i, v) in self.index.iter().enumerate() {
             let score = cosine_similarity(query, v, query_unit);
             if result.len() == topk {
-                let lowest = result.peek().unwrap().score;
-                if score < lowest {
-                    continue;
+                if let Some(lowest) = result.peek() {
+                    if score < lowest.score {
+                        continue;
+                    }
                 }
                 result.pop();
             }

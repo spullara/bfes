@@ -1,6 +1,5 @@
 #![feature(test)]
 #![feature(portable_simd)]
-#![feature(scoped_threads)]
 #[macro_use]
 extern crate lazy_static;
 

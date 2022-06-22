@@ -19,17 +19,11 @@ crate-type = ["staticlib"]
 c-headers = ["safer-ffi/headers"]
 
 [dependencies]
-safer-ffi = { version = "*", features = ["proc_macros"] }
+safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
 itertools = "0.10.3"
 rayon = "1.5.3"
-
-# https://github.com/danielhenrymantilla/mini_paste/commit/69f4e5e0784d05fecaaca7ec8d8ed0a13f407472
-# This was necessary to make the crate work with the nightly version of rust.
-[patch.crates-io.mini_paste]
-git = "https://github.com/danielhenrymantilla/mini_paste.git"
-rev = "69f4e5e0784d05fecaaca7ec8d8ed0a13f407472"
 
 [profile.bench]
 debug = true

@@ -45,7 +45,7 @@ impl Index {
         assert_eq!(dim % 16, 0);
         Index {
             index: vec![],
-            dim
+            dim,
         }
     }
     fn add(&mut self, data: Vec<f32>) {
@@ -58,11 +58,14 @@ impl Index {
     fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
         assert!(topk > 0);
         assert_eq!(query.len(), self.dim);
+
+        // Precompute the unit coefficient for the search vector.
+        let query_unit = 1.0 / mag_squared(&query).sqrt();
+
+        // Keep a sorted list of results so we can avoid adding not-topk items
         let mut result: BinaryHeap<Score> = BinaryHeap::new();
         // Don't want to allocate while building the heap
         result.reserve_exact(topk);
-        // Precompute the unit coefficient for the search vector.
-        let query_unit = 1.0 / mag_squared(&query).sqrt();
 
         // Wondering if there is a better way to do this
         self.index.iter().enumerate().map(|(id, vec)| {

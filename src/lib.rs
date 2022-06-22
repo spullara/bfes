@@ -24,7 +24,11 @@ impl PartialEq<Self> for Score {
 
 impl PartialOrd<Self> for Score {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.score.partial_cmp(&self.score)
+        match other.score.partial_cmp(&self.score) {
+            Some(Ordering::Equal) => Some(self.id.cmp(&other.id)),
+            Some(ordering) => Some(ordering),
+            None => None,
+        }
     }
 }
 

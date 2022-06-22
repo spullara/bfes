@@ -18,7 +18,7 @@ struct Score {
 
 impl PartialEq<Self> for Score {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.score == other.score && self.id == other.id
     }
 }
 
@@ -33,7 +33,10 @@ impl Eq for Score {}
 impl Ord for Score {
     // Reverse the order so that the highest score is first.
     fn cmp(&self, other: &Self) -> Ordering {
-        other.score.total_cmp(&self.score)
+        match other.score.total_cmp(&self.score) {
+            Ordering::Equal => other.id.cmp(&self.id),
+            other => other,
+        }
     }
 }
 

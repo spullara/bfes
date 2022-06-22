@@ -1,10 +1,22 @@
 #![feature(test)]
 #![feature(portable_simd)]
+#![feature(scoped_threads)]
 #[macro_use]
 extern crate lazy_static;
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::simd::f32x16;
+use std::slice;
+use std::sync::Mutex;
+
+// Here is the C API for Index. It works very well from Swift if you want to use it on
+// iOS or Mac.
+use ::safer_ffi::prelude::*;
+use itertools::Itertools;
+use rayon::prelude::*;
 
 struct Index {
     dim: usize,
@@ -68,12 +80,14 @@ impl Index {
 
         // Get the top k highest scoring embeddings
         self.index
-            .iter()
+            .par_iter()
             .enumerate()
             .map(|(id, vec)| Score {
                 id,
                 score: cosine_similarity(query, vec, query_unit),
             })
+            .collect::<Vec<Score>>()
+            .iter()
             .k_smallest(topk)
             .map(|s| (s.id, s.score))
             .collect()
@@ -109,14 +123,15 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use test::Bencher;
+
+    use rand::{Rng, SeedableRng};
+    use rand::distributions::Standard;
+    use rand::rngs::StdRng;
+
     use crate::Index;
 
     extern crate test;
-
-    use rand::distributions::Standard;
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
-    use test::Bencher;
 
     /// The following test function is necessary for the header generation.
     #[safer_ffi::cfg_headers]
@@ -167,16 +182,6 @@ mod tests {
         (index, v)
     }
 }
-
-// Here is the C API for Index. It works very well from Swift if you want to use it on
-// iOS or Mac.
-use ::safer_ffi::prelude::*;
-use itertools::Itertools;
-use std::collections::HashMap;
-use std::ffi::CStr;
-use std::os::raw::c_char;
-use std::slice;
-use std::sync::Mutex;
 
 lazy_static! {
     static ref INDEX_MANAGER: Mutex<HashMap<String, Box<Index>>> = Mutex::new(HashMap::new());

@@ -62,7 +62,7 @@ impl Index {
         // Precompute the unit coefficient for the search vector.
         let query_unit = 1.0 / mag_squared(&query).sqrt();
 
-        //
+        // Get the top k highest scoring embeddings
         self.index
             .iter()
             .enumerate()

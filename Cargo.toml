@@ -15,6 +15,7 @@ c-headers = ["safer-ffi/headers"]
 safer-ffi = { version = "*", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
+itertools = "*"
 
 # https://github.com/danielhenrymantilla/mini_paste/commit/69f4e5e0784d05fecaaca7ec8d8ed0a13f407472
 # This was necessary to make the crate work with the nightly version of rust.

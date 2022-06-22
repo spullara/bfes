@@ -4,7 +4,6 @@
 extern crate lazy_static;
 
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use std::simd::f32x16;
 
 struct Index {
@@ -43,16 +42,14 @@ impl Ord for Score {
 impl Index {
     fn new(dim: usize) -> Index {
         assert_eq!(dim % 16, 0);
-        Index {
-            index: vec![],
-            dim,
-        }
+        Index { index: vec![], dim }
     }
     fn add(&mut self, data: Vec<f32>) {
         assert_eq!(data.len(), self.dim);
         // Precompute the unit vector and store it
         let unit_factor = mag_squared(&data).sqrt();
-        self.index.push(data.into_iter().map(|x| x / unit_factor).collect());
+        self.index
+            .push(data.into_iter().map(|x| x / unit_factor).collect());
     }
     // Use cosine similarity to search index
     fn search(&self, query: &Vec<f32>, topk: usize) -> Vec<(usize, f32)> {
@@ -62,29 +59,15 @@ impl Index {
         // Precompute the unit coefficient for the search vector.
         let query_unit = 1.0 / mag_squared(&query).sqrt();
 
-        // Keep a sorted list of results so we can avoid adding not-topk items
-        let mut result: BinaryHeap<Score> = BinaryHeap::new();
-        // Don't want to allocate while building the heap
-        result.reserve_exact(topk);
-
-        // Wondering if there is a better way to do this
-        self.index.iter().enumerate().map(|(id, vec)| {
-            (id, cosine_similarity(query, vec, query_unit))
-        }).for_each(|(id, score)| {
-            if result.len() == topk {
-                if let Some(lowest) = result.peek() {
-                    if score < lowest.score {
-                        return;
-                    }
-                }
-                result.pop();
-            }
-            result.push(Score { id, score });
-        });
-
-        result
-            .into_sorted_vec()
+        //
+        self.index
             .iter()
+            .enumerate()
+            .map(|(id, vec)| Score {
+                id,
+                score: cosine_similarity(query, vec, query_unit),
+            })
+            .k_smallest(topk)
             .map(|s| (s.id, s.score))
             .collect()
     }
@@ -124,8 +107,8 @@ mod tests {
     extern crate test;
 
     use rand::distributions::Standard;
-    use rand::{Rng, SeedableRng};
     use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test::Bencher;
 
     /// The following test function is necessary for the header generation.
@@ -148,6 +131,7 @@ mod tests {
             last = score.1;
         }
         println!("{:?}", result);
+        assert_eq!(result[0].0, 77918);
     }
 
     #[bench]
@@ -180,6 +164,7 @@ mod tests {
 // Here is the C API for Index. It works very well from Swift if you want to use it on
 // iOS or Mac.
 use ::safer_ffi::prelude::*;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::os::raw::c_char;

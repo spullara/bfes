@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+use slice::from_raw_parts;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ffi::CStr;
@@ -75,7 +76,7 @@ impl Index {
         assert_eq!(query.len(), self.dim);
 
         // Precompute the unit coefficient for the search vector.
-        let query_unit = 1.0 / mag_squared(&query).sqrt();
+        let query_unit = 1.0 / mag_squared(query).sqrt();
 
         // Get the top k highest scoring embeddings
         self.index
@@ -205,14 +206,14 @@ pub extern "C" fn bfes_new_index(name: *const c_char, dimension: usize) {
 }
 
 #[ffi_export]
-pub extern "C" fn bfes_add(name: *const c_char, features: *const f32, dimension: usize) -> usize {
+pub unsafe extern "C" fn bfes_add(name: *const c_char, features: *const f32, dimension: usize) -> usize {
     let idx_name: String = cchar_to_string(name);
-    let data_slice = unsafe { slice::from_raw_parts(features as *const f32, dimension) };
+    let data_slice = from_raw_parts(features as *const f32, dimension);
     let buf = data_slice.to_vec();
 
     match &mut INDEX_MANAGER.lock().unwrap().get_mut(&idx_name) {
         Some(index) => {
-            index.add(Vec::from(buf));
+            index.add(buf);
             index.len()
         }
         None => 0,
@@ -228,20 +229,20 @@ pub struct SearchResult {
 }
 
 #[ffi_export]
-pub extern "C" fn bfes_search(
+pub unsafe extern "C" fn bfes_search(
     name: *const c_char,
     k: usize,
     features: *const f32,
     dimension: usize,
 ) -> repr_c::Vec<SearchResult> {
     let idx_name: String = cchar_to_string(name);
-    let data_slice = unsafe { slice::from_raw_parts(features, dimension) };
+    let data_slice = from_raw_parts(features, dimension);
     let buf = data_slice.to_vec();
     let topk = k;
 
     let mut result: Vec<SearchResult> = vec![];
     if let Some(index) = INDEX_MANAGER.lock().unwrap().get(&idx_name) {
-        index.search(&Vec::from(buf), topk).iter().for_each(|x| {
+        index.search(&buf, topk).iter().for_each(|x| {
             result.push(SearchResult {
                 index: x.0,
                 score: x.1,

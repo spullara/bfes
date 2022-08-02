@@ -80,16 +80,14 @@ impl Index {
 
         // Get the top k highest scoring embeddings
         self.index
-            .par_iter()
+            .iter()
             .enumerate()
             .map(|(id, vec)| Score {
                 id,
-                score: cosine_similarity(query, vec, query_unit),
+                score: simd_dot(query, vec),
             })
-            .collect::<Vec<Score>>()
-            .iter()
             .k_smallest(topk)
-            .map(|s| (s.id, s.score))
+            .map(|s| (s.id, s.score * query_unit))
             .collect()
     }
     fn len(&self) -> usize {
@@ -99,13 +97,21 @@ impl Index {
 
 // Short hand
 fn mag_squared(a: &Vec<f32>) -> f32 {
-    cosine_similarity(a, a, 1.0)
+    simd_dot(a, a)
+}
+
+fn dot(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
+    let mut sum: f32 = 0.0;
+    for i in 0..a.len() {
+        sum += a[i] * b[i];
+    }
+    sum
 }
 
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
 // I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
 // implementation this but on others (M1) it will not.
-fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32) -> f32 {
+fn simd_dot(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
     let lanes = 16;
     let partitions = a.len() / lanes;
     // Use simd to calculate cosine similarity
@@ -118,7 +124,7 @@ fn cosine_similarity(a: &Vec<f32>, b: &Vec<f32>, a_unit: f32) -> f32 {
         let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
         dot += (a_simd * b_simd).reduce_sum();
     }
-    dot * a_unit
+    dot
 }
 
 #[cfg(test)]
@@ -241,6 +247,7 @@ pub unsafe extern "C" fn bfes_search(
     let topk = k;
 
     let mut result: Vec<SearchResult> = vec![];
+    result.reserve(topk);
     if let Some(index) = INDEX_MANAGER.lock().unwrap().get(&idx_name) {
         index.search(&buf, topk).iter().for_each(|x| {
             result.push(SearchResult {

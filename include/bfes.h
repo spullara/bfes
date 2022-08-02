@@ -19,7 +19,8 @@ extern "C" {
 #include <stdint.h>
 
 void bfes_new_index (
-    int8_t const * name);
+    int8_t const * name,
+    size_t dimension);
 
 size_t bfes_add (
     int8_t const * name,

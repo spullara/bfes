@@ -24,6 +24,7 @@ lazy_static = "1.4.0"
 rand = "0.8.5"
 itertools = "0.10.3"
 rayon = "1.5.3"
+petal-clustering = "0.5.1"
 
 [profile.bench]
 debug = true

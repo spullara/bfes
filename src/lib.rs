@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use std::simd::f32x16;
+use std::simd::{f32x16, SimdFloat};
 use std::slice;
 use std::sync::Mutex;
 

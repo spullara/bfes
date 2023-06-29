@@ -45,6 +45,4 @@ xcodebuild -create-xcframework \
   -headers ./include/ \
   -library ./target/aarch64-apple-ios/release/libbfes.a \
   -headers ./include/ \
-  -library ./libbfes_maccatalyst.a \
-  -headers ./include/ \
   -output BFES.xcframework

@@ -9,7 +9,6 @@
 
 #ifndef __RUST_BFES__
 #define __RUST_BFES__
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,37 +17,45 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-void bfes_new_index (
-    int8_t const * name,
-    size_t dimension);
-
-size_t bfes_add (
+/** <No documentation available> */
+size_t
+bfes_add (
     int8_t const * name,
     float const * features,
     size_t dimension);
 
-typedef struct SearchResult {
+/** <No documentation available> */
+void
+bfes_new_index (
+    int8_t const * name,
+    size_t dimension);
 
+/** <No documentation available> */
+typedef struct SearchResult {
+    /** <No documentation available> */
     size_t index;
 
+    /** <No documentation available> */
     float score;
-
 } SearchResult_t;
 
 /** \brief
  *  Same as [`Vec<T>`][`rust::Vec`], but with guaranteed `#[repr(C)]` layout
  */
 typedef struct Vec_SearchResult {
-
+    /** <No documentation available> */
     SearchResult_t * ptr;
 
+    /** <No documentation available> */
     size_t len;
 
+    /** <No documentation available> */
     size_t cap;
-
 } Vec_SearchResult_t;
 
-Vec_SearchResult_t bfes_search (
+/** <No documentation available> */
+Vec_SearchResult_t
+bfes_search (
     int8_t const * name,
     size_t k,
     float const * features,
@@ -56,7 +63,7 @@ Vec_SearchResult_t bfes_search (
 
 
 #ifdef __cplusplus
-} /* extern "C" */
+} /* extern \"C\" */
 #endif
 
 #endif /* __RUST_BFES__ */

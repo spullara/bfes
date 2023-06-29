@@ -2,10 +2,11 @@
 #![feature(portable_simd)]
 #[macro_use]
 extern crate lazy_static;
+extern crate petal_clustering;
 
 use slice::from_raw_parts;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::simd::{f32x16, SimdFloat};
@@ -55,6 +56,11 @@ impl Ord for Score {
     }
 }
 
+struct Cluster {
+    embeddings: Vec<usize>,
+    centroid: Vec<f32>,
+}
+
 // This currently only supports vectors that have a length with a
 // multiple of 16.
 impl Index {
@@ -89,8 +95,79 @@ impl Index {
             .map(|s| (s.id, s.score * query_unit))
             .collect()
     }
+    // Find all the match above the threshold
+    fn search_by_threshold(&self, query: &Vec<f32>, threshold: f32) -> Vec<(usize, f32)> {
+        assert!(threshold > 0.0);
+        assert_eq!(query.len(), self.dim);
+
+        // Precompute the unit coefficient for the search vector.
+        let query_unit = 1.0 / mag_squared(query).sqrt();
+
+        // Get the top highest scoring embeddings above the threshold
+        self.index
+            .iter()
+            .enumerate()
+            .map(|(id, vec)| (id, simd_dot(query, vec)  * query_unit))
+            .filter(|(_, s)| s > &threshold)
+            .sorted_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .collect()
+    }
     fn len(&self) -> usize {
         self.index.len()
+    }
+
+    fn clusters(&self) -> Vec<Cluster> {
+        // Loop over the embeddings and search for nearest neighbors filtering out those
+        // below a distance of 0.8. Create a cluster. If the cluster is too small, then
+        // add it to the outliers. Remove the embeddings from the index and repeat.
+        let mut clusters = vec![];
+        let mut outliers: HashSet<usize> = HashSet::new();
+        let mut seen: HashSet<usize> = HashSet::new();
+        let mut index = self.index.clone();
+        // Loop over the embeddings
+        for (id, embedding) in index.iter().enumerate() {
+            if seen.contains(&id) {
+                continue;
+            }
+            let result = self.search_by_threshold(embedding, 0.75);
+            if result.len() <= 10 {
+                // Insert all results into outliers
+                outliers.extend(result.iter().map(|(id, _)| *id));
+                continue;
+            }
+            // Calculate the centroid of the results
+            let mut centroid= vec![0.0; self.dim];
+            for (id, _) in result.iter() {
+                seen.insert(*id);
+                for (i, x) in index[*id].iter().enumerate() {
+                    centroid[i] += x;
+                }
+            }
+            // Normalize the centroid
+            centroid = centroid.iter().map(|x| x / result.len() as f32).collect();
+            // Create a cluster
+            let cluster = Cluster {
+                embeddings: result.iter().map(|(id, _)| *id).collect(),
+                centroid,
+            };
+            clusters.push(cluster);
+        }
+        clusters
+    }
+
+    fn dbscan(&self) -> Vec<Cluster> {
+        use petal_clustering::{Dbscan, Fit};
+        use petal_neighbors::{
+            distance::{Euclidean, Metric},
+            BallTree,
+        };
+
+        let clustering = Dbscan::new(3.0, 10, Euclidean::default()).fit(&self.index);
+
+        assert_eq!(clustering.0.len(), 2);        // two clusters found
+        assert_eq!(clustering.0[&0], [0, 1, 2]);  // the first three points in Cluster 0
+        assert_eq!(clustering.0[&1], [3, 4]);     // [8., 7.] and [8., 8.] in Cluster 1
+        assert_eq!(clustering.1, [5]);            // [25., 80.] doesn't belong to any cluster
     }
 }
 
@@ -151,6 +228,22 @@ mod tests {
         }
         println!("{:?}", result);
         assert_eq!(result[0].0, 77918);
+    }
+
+    #[test]
+    fn cluster_test() {
+        let (index, _) = prepare();
+        let clusters = index.clusters();
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].embeddings.len(), 100000);
+    }
+
+    #[test]
+    fn dbscan_test() {
+        let (index, _) = prepare();
+        let clusters = index.dbscan();
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].embeddings.len(), 100000);
     }
 
     #[bench]

@@ -19,12 +19,13 @@ crate-type = ["staticlib"]
 c-headers = ["safer-ffi/headers"]
 
 [dependencies]
-safer-ffi = { version = "0.0.10", features = ["proc_macros"] }
+safer-ffi = { version = "0.1.0", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
 itertools = "0.10.3"
 rayon = "1.5.3"
 petal-clustering = "0.5.1"
+petal-neighbors = "0.8.0"
 
 [profile.bench]
 debug = true

@@ -16,7 +16,6 @@ use std::sync::Mutex;
 // iOS or Mac.
 use ::safer_ffi::prelude::*;
 use itertools::Itertools;
-use rayon::prelude::*;
 
 struct Index {
     dim: usize,
@@ -98,14 +97,6 @@ impl Index {
 // Short hand
 fn mag_squared(a: &Vec<f32>) -> f32 {
     simd_dot(a, a)
-}
-
-fn dot(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
-    let mut sum: f32 = 0.0;
-    for i in 0..a.len() {
-        sum += a[i] * b[i];
-    }
-    sum
 }
 
 // Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.

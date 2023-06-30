@@ -1,6 +1,8 @@
 #!/bin/bash
 set -xeuo pipefail
 
+rustup install nightly-2023-02-02
+rustup component add rust-src --toolchain nightly-2023-02-02-aarch64-apple-darwin
 cargo test --features c-headers -- generate_headers
 
 TARGETS=(
@@ -22,7 +24,7 @@ TARGETS=(
 )
 for target in "${TARGETS[@]}"
 do
-  cargo +nightly build -Z build-std --release --target $target
+  cargo +nightly-2023-02-02 build -Z build-std --release --target $target
 done
 
 lipo -create \
@@ -44,5 +46,7 @@ xcodebuild -create-xcframework \
   -library ./libbfes_iossimulator.a \
   -headers ./include/ \
   -library ./target/aarch64-apple-ios/release/libbfes.a \
+  -headers ./include/ \
+  -library ./libbfes_maccatalyst.a \
   -headers ./include/ \
   -output BFES.xcframework

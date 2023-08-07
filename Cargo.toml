@@ -23,6 +23,11 @@ safer-ffi = { version = "0.1.0", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
 itertools = "0.10.3"
+kmeans = "0.2.0"
+rusqlite = "0.29.0"
+byteorder = "1.4.3"
+ndarray = "0.15.6"
+ndarray-rand = "0.14.0"
 
 [profile.bench]
 debug = true

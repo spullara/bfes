@@ -178,6 +178,83 @@ mod tests {
         let v: Vec<f32> = rng.sample_iter(Standard).take(dim).collect();
         (index, v)
     }
+
+    use std::error::Error;
+    use kmeans::*;
+    use std::time::Instant;
+
+    extern crate rusqlite;
+    extern crate byteorder;
+
+    use rusqlite::{params, Connection, Result};
+    use byteorder::{ByteOrder, LittleEndian};
+
+    fn load_embeddings_from_sqlite() -> Result<Vec<Vec<f32>>> {
+        let conn = Connection::open("rememberwhen.sqlite")?;
+
+        let mut stmt = conn.prepare("SELECT embedding FROM face_index")?;
+        let embeddings_iter = stmt.query_map(params![], |row| {
+            let blob: Vec<u8> = row.get(0)?;
+            let floats: Vec<f32> = blob.chunks(4)
+                .map(|bytes| LittleEndian::read_f32(bytes))
+                .collect();
+            Ok(floats)
+        })?;
+
+        let mut embeddings = Vec::new();
+        for embedding_result in embeddings_iter {
+            embeddings.push(embedding_result?);
+        }
+        Ok(embeddings)
+    }
+
+    #[test]
+    fn load_faces() -> Result<(), Box<dyn Error>> {
+
+        extern crate rand;
+        extern crate ndarray;
+        extern crate ndarray_rand;
+
+        use ndarray::Array2;
+        use ndarray_rand::{RandomExt};
+        use rand::distributions::Standard;
+
+        let data = load_embeddings_from_sqlite()?;
+
+        // Create a random Gaussian matrix with shape (2048, 64)
+        let random_projection: Array2<f32> = Array2::random((2048, 64), Standard);
+
+        // Map the embeddings using the random Gaussian projection
+        let projected_embeddings: Vec<Vec<f32>> = data.iter()
+            .map(|embedding| {
+                let embedding_array = Array2::from_shape_vec((1, 2048), embedding.clone()).unwrap();
+                let projected = embedding_array.dot(&random_projection);
+                projected.into_raw_vec()
+            })
+            .collect();
+
+        // Print the data
+        let num_faces = data.len();
+        println!("Faces: {}", num_faces);
+
+        let flattened: Vec<f32> = projected_embeddings.into_iter().flatten().collect();
+
+        let start = Instant::now();
+
+        // Calculate kmeans, using kmean++ as initialization-method
+        let kmean = KMeans::new(flattened, num_faces, 64);
+        let result = kmean.kmeans_lloyd(100, 1, KMeans::init_kmeanplusplus, &KMeansConfig::default());
+
+        let duration = start.elapsed();
+
+        println!("Time elapsed is: {:?}", duration);
+
+        // println!("Centroids: {:?}", result.centroids);
+        // println!("Cluster-Assignments: {:?}", result.assignments);
+        println!("Error: {:?}", result.distsum);
+
+        Ok(())
+    }
 }
 
 lazy_static! {

@@ -1,6 +1,4 @@
 #![feature(test)]
-use lazy_static::lazy_static;
-
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::Mutex;

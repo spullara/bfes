@@ -15,11 +15,7 @@ readme = "README.md"
 name = "bfes"
 crate-type = ["staticlib"]
 
-[features]
-c-headers = ["safer-ffi/headers"]
-
 [dependencies]
-safer-ffi = { version = "0.1.0", features = ["proc_macros"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
 itertools = "0.10.3"

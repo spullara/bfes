@@ -1,20 +1,9 @@
 #![feature(test)]
-#![feature(portable_simd)]
-#[macro_use]
-extern crate lazy_static;
+use lazy_static::lazy_static;
 
-use slice::from_raw_parts;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::ffi::CStr;
-use std::os::raw::c_char;
-use std::simd::{f32x16, SimdFloat};
-use std::slice;
 use std::sync::Mutex;
-
-// Here is the C API for Index. It works very well from Swift if you want to use it on
-// iOS or Mac.
-use ::safer_ffi::prelude::*;
 use itertools::Itertools;
 
 struct Index {
@@ -83,7 +72,7 @@ impl Index {
             .enumerate()
             .map(|(id, vec)| Score {
                 id,
-                score: simd_dot(query, vec),
+                score: dot_product(query, vec),
             })
             .k_smallest(topk)
             .map(|s| (s.id, s.score * query_unit))
@@ -96,25 +85,19 @@ impl Index {
 
 // Short hand
 fn mag_squared(a: &Vec<f32>) -> f32 {
-    simd_dot(a, a)
+    dot_product(a, a)
 }
 
-// Leverages SIMD on the CPU to calculate the cosine similarity between two vectors.
-// I have found that on some architectures (amd64) LLVM will automatically vectorize the naive
-// implementation this but on others (M1) it will not.
-fn simd_dot(a: &Vec<f32>, b: &Vec<f32>) -> f32 {
-    let lanes = 16;
-    let partitions = a.len() / lanes;
-    // Use simd to calculate cosine similarity
-    let mut dot: f32 = 0.0;
-    // Loop over partitions
-    for i in 0..partitions {
-        let i1 = i * lanes;
-        let i2 = (i + 1) * lanes;
-        let a_simd = f32x16::from_slice(&a.as_slice()[i1..i2]);
-        let b_simd = f32x16::from_slice(&b.as_slice()[i1..i2]);
-        dot += (a_simd * b_simd).reduce_sum();
+fn dot_product(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        panic!("Vectors must have the same length");
     }
+
+    let mut dot = 0.0;
+    for i in 0..a.len() {
+        dot += a[i] * b[i];
+    }
+
     dot
 }
 
@@ -129,15 +112,6 @@ mod tests {
     use crate::Index;
 
     extern crate test;
-
-    /// The following test function is necessary for the header generation.
-    #[safer_ffi::cfg_headers]
-    #[test]
-    fn generate_headers() -> std::io::Result<()> {
-        safer_ffi::headers::builder()
-            .to_file("include/bfes.h")?
-            .generate()
-    }
 
     #[test]
     fn search_test() {
@@ -182,70 +156,4 @@ mod tests {
 
 lazy_static! {
     static ref INDEX_MANAGER: Mutex<HashMap<String, Box<Index>>> = Mutex::new(HashMap::new());
-}
-
-fn cchar_to_string(name: *const c_char) -> String {
-    let idx_name;
-    unsafe {
-        idx_name = CStr::from_ptr(name).to_string_lossy().into_owned();
-    }
-    idx_name
-}
-
-#[ffi_export]
-pub extern "C" fn bfes_new_index(name: *const c_char, dimension: usize) {
-    let idx_name = cchar_to_string(name);
-
-    INDEX_MANAGER
-        .lock()
-        .unwrap()
-        .insert(idx_name, Box::new(Index::new(dimension)));
-}
-
-#[ffi_export]
-pub unsafe extern "C" fn bfes_add(name: *const c_char, features: *const f32, dimension: usize) -> usize {
-    let idx_name: String = cchar_to_string(name);
-    let data_slice = from_raw_parts(features as *const f32, dimension);
-    let buf = data_slice.to_vec();
-
-    match &mut INDEX_MANAGER.lock().unwrap().get_mut(&idx_name) {
-        Some(index) => {
-            index.add(buf);
-            index.len()
-        }
-        None => 0,
-    }
-}
-
-#[derive_ReprC]
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct SearchResult {
-    index: usize,
-    score: f32,
-}
-
-#[ffi_export]
-pub unsafe extern "C" fn bfes_search(
-    name: *const c_char,
-    k: usize,
-    features: *const f32,
-    dimension: usize,
-) -> repr_c::Vec<SearchResult> {
-    let idx_name: String = cchar_to_string(name);
-    let data_slice = from_raw_parts(features, dimension);
-    let buf = data_slice.to_vec();
-    let topk = k;
-
-    let mut result: Vec<SearchResult> = vec![];
-    result.reserve(topk);
-    if let Some(index) = INDEX_MANAGER.lock().unwrap().get(&idx_name) {
-        index.search(&buf, topk).iter().for_each(|x| {
-            result.push(SearchResult {
-                index: x.0,
-                score: x.1,
-            })
-        })
-    }
-    result.into()
 }

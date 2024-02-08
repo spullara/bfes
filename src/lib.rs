@@ -153,7 +153,3 @@ mod tests {
         (index, v)
     }
 }
-
-lazy_static! {
-    static ref INDEX_MANAGER: Mutex<HashMap<String, Box<Index>>> = Mutex::new(HashMap::new());
-}

@@ -11,20 +11,13 @@ TARGETS=(
   'aarch64-apple-darwin'
   'x86_64-apple-ios'
   'aarch64-apple-ios-sim'
-)
-for target in "${TARGETS[@]}"
-do
-  rustup target add $target
-  cargo build --release --target $target
-done
-
-TARGETS=(
   'aarch64-apple-ios-macabi'
   'x86_64-apple-ios-macabi'
 )
 for target in "${TARGETS[@]}"
 do
-  cargo +nightly-2023-02-02 build -Z build-std --release --target $target
+  rustup target add $target
+  cargo build --release --target $target
 done
 
 lipo -create \

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xeuo pipefail
 
-rustup install nightly-2023-02-02
+# rustup install nightly-2023-02-02
 rustup component add rust-src --toolchain nightly-2023-02-02-aarch64-apple-darwin
 cargo test --features c-headers -- generate_headers
 
